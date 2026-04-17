@@ -73,7 +73,7 @@ ai-reader-extension/
 - Page content is capped at **~80,000 characters** to fit within context limits
 - Chat history sends the last **10 turns** for context
 - API key stored in `chrome.storage.local` (device-only)
-- Model: `claude-sonnet-4-20250514`
+- Model: `claude-sonnet-4-6`
 
 ---
 
