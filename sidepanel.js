@@ -147,25 +147,34 @@ document.addEventListener("DOMContentLoaded", () => {
     isLoading = true;
     document.getElementById("send-btn").disabled = true;
 
+    let streamEl = null;
+
     try {
-      const res = await chrome.runtime.sendMessage({
-        type: "ASK_AI",
-        apiKey,
-        context: pageContent,
-        question,
-        history: chatHistory.slice(-10),
-      });
+      const finalText = await askClaudeStream(
+        apiKey, pageContent, question, chatHistory.slice(-10),
+        (partialText) => {
+          if (!streamEl) {
+            typingEl.remove();
+            streamEl = appendStreamingBubble();
+          }
+          updateStreamingBubble(streamEl, partialText);
+        }
+      );
 
-      typingEl.remove();
-      if (res.error) throw new Error(res.error);
+      if (streamEl) {
+        finalizeStreamingBubble(streamEl, finalText);
+      } else {
+        typingEl.remove();
+        appendMessage("ai", finalText);
+      }
 
-      appendMessage("ai", res.answer);
       chatHistory.push(
         { role: "user", content: question },
-        { role: "assistant", content: res.answer }
+        { role: "assistant", content: finalText }
       );
     } catch (err) {
       typingEl.remove();
+      if (streamEl) streamEl.remove();
       appendMessage("ai", "⚠ Error: " + err.message);
     } finally {
       isLoading = false;
@@ -189,6 +198,44 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("empty-state").style.display = "";
     chatHistory = [];
   });
+
+  // STREAMING BUBBLE HELPERS
+  function appendStreamingBubble() {
+    const area = document.getElementById("chat-area");
+    const wrapper = document.createElement("div");
+    wrapper.className = "message ai";
+
+    const label = document.createElement("div");
+    label.className = "msg-role";
+    label.textContent = "PageMind";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble streaming";
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(bubble);
+    area.appendChild(wrapper);
+    area.scrollTop = area.scrollHeight;
+    return wrapper;
+  }
+
+  function updateStreamingBubble(wrapper, text) {
+    const bubble = wrapper.querySelector(".bubble");
+    bubble.textContent = text;
+    const cursor = document.createElement("span");
+    cursor.className = "stream-cursor";
+    bubble.appendChild(cursor);
+    const area = document.getElementById("chat-area");
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function finalizeStreamingBubble(wrapper, text) {
+    const bubble = wrapper.querySelector(".bubble");
+    bubble.classList.remove("streaming");
+    bubble.innerHTML = renderMarkdown(text);
+    const area = document.getElementById("chat-area");
+    area.scrollTop = area.scrollHeight;
+  }
 
   // APPEND MESSAGES
   function appendMessage(role, text) {
@@ -266,3 +313,142 @@ document.addEventListener("DOMContentLoaded", () => {
   init();
 
 }); // end DOMContentLoaded
+
+// ── Smart content trimmer ──
+function getRelevantContent(text, question) {
+  const CHAR_LIMIT = 20000;
+  if (text.length <= CHAR_LIMIT) return text;
+
+  const qLower = question.toLowerCase();
+
+  const pageMatch = qLower.match(/pages?\s*(\d+)(?:\s*[-–to]+\s*(\d+))?/);
+  if (pageMatch) {
+    const startPage = parseInt(pageMatch[1]);
+    const endPage   = parseInt(pageMatch[2] || pageMatch[1]);
+    const pageMarkers = [...text.matchAll(/\[Page (\d+)\]/g)];
+    if (pageMarkers.length > 0) {
+      let startIdx = 0, endIdx = text.length;
+      for (let i = 0; i < pageMarkers.length; i++) {
+        const pg = parseInt(pageMarkers[i][1]);
+        if (pg <= startPage) startIdx = pageMarkers[i].index;
+        if (pg === endPage + 1 && endIdx === text.length) endIdx = pageMarkers[i].index;
+      }
+      const intro = text.slice(0, 800);
+      return (intro + "\n...\n" + text.slice(startIdx, endIdx)).slice(0, CHAR_LIMIT * 2);
+    }
+  }
+
+  const sectionMatch = qLower.match(/section\s*([\d.]+)/);
+  if (sectionMatch) {
+    const sectionRe = new RegExp(`\\b${sectionMatch[1].replace('.', '\\.')}\\s`, 'i');
+    const idx = text.search(sectionRe);
+    if (idx > 0) {
+      const intro = text.slice(0, 800);
+      return (intro + "\n...\n" + text.slice(Math.max(0, idx - 200), idx + CHAR_LIMIT)).slice(0, CHAR_LIMIT * 2);
+    }
+  }
+
+  const stopWords = new Set(["what","is","are","the","a","an","of","in","on","at","to","for",
+    "and","or","but","how","why","when","where","who","which","does","do","did","was","were",
+    "has","have","had","can","could","would","should","will","tell","me","about","give","list",
+    "summarize","summary","describe","explain","overview"]);
+
+  const keywords = qLower.replace(/[^a-z0-9\s]/g, "").split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w));
+
+  if (keywords.length === 0) return text.slice(0, CHAR_LIMIT);
+
+  const paragraphs = text.split(/\n{1,2}/);
+  const scored = paragraphs.map((para, idx) => {
+    const lower = para.toLowerCase();
+    const score = keywords.reduce((s, kw) => {
+      return s + (lower.match(new RegExp(`\\b${kw}\\b`, "g")) || []).length * 2 + (lower.includes(kw) ? 1 : 0);
+    }, 0);
+    return { idx, score, para };
+  });
+
+  const top = scored.filter(p => p.score > 0)
+    .sort((a, b) => b.score - a.score).slice(0, 30)
+    .sort((a, b) => a.idx - b.idx);
+
+  if (top.length === 0) return text.slice(0, CHAR_LIMIT);
+
+  const firstIdx = Math.max(0, top[0].idx - 3);
+  const lastIdx  = Math.min(paragraphs.length - 1, top[top.length - 1].idx + 3);
+  const intro = text.slice(0, 800);
+  return (intro + "\n...\n" + paragraphs.slice(firstIdx, lastIdx + 1).join("\n")).slice(0, CHAR_LIMIT);
+}
+
+// ── Build system prompt ──
+function buildSystemPrompt(context, question) {
+  const docType = context.isPdf ? `PDF DOCUMENT (${context.pageCount} pages)` : "WEBPAGE";
+  const relevantContent = getRelevantContent(context.text, question);
+  const isTrimmed = relevantContent.length < context.text.length;
+
+  return `You are PageMind, an intelligent reading assistant. The user is viewing a ${docType}.
+
+TITLE: ${context.title}
+URL: ${context.url}
+WORD COUNT: ~${context.wordCount} words${isTrimmed ? " (showing most relevant section)" : ""}
+
+CONTENT:
+---
+${relevantContent}
+---
+
+Answer questions based on this content. Be concise but thorough. If the answer isn't in the content, say so clearly. Use markdown formatting when helpful.`;
+}
+
+// ── Claude streaming API ──
+async function askClaudeStream(apiKey, context, question, history, onChunk) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1500,
+      stream: true,
+      system: buildSystemPrompt(context, question),
+      messages: [...history, { role: "user", content: question }],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || "API request failed");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop(); // hold incomplete line for next chunk
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6).trim();
+      if (data === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
+          fullText += parsed.delta.text;
+          onChunk(fullText);
+        }
+      } catch { /* skip malformed lines */ }
+    }
+  }
+
+  return fullText;
+}
