@@ -57,7 +57,7 @@ function looksLikePdf(url, title) {
 
 async function getActiveTab() {
   return new Promise((resolve) => {
-    chrome.tabs.query({ active: true }, (tabs) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs.find(t =>
         t.url &&
         !t.url.startsWith("chrome://") &&
