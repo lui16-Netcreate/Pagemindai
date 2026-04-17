@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PageMind AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #141416;
+      --surface2: #1c1c20;
+      --border: #2a2a30;
+      --border2: #353540;
+      --text: #f0eff4;
+      --text-muted: #7a7a8a;
+      --text-dim: #4a4a5a;
+      --accent: #c8a97e;
+      --accent2: #e8c99e;
+      --accent-glow: rgba(200, 169, 126, 0.15);
+      --ai-bubble: #181820;
+      --user-bubble: #1e1e28;
+      --error: #e05555;
+      --success: #55c77a;
+    }
+
+    html {
+      height: 100%;
+    }
+
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Geist', sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* ── FULL HEIGHT LAYOUT using position:absolute ── */
+    #app {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo { display: flex; align-items: center; gap: 8px; }
+
+    .logo-icon {
+      width: 26px; height: 26px;
+      background: linear-gradient(135deg, var(--accent), #9a7050);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+
+    .logo-name {
+      font-family: 'Instrument Serif', serif;
+      font-size: 17px; color: var(--text); letter-spacing: -0.02em;
+    }
+    .logo-name span { color: var(--accent); }
+
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+
+    .icon-btn {
+      width: 30px; height: 30px; border-radius: 8px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-muted); display: flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: all 0.15s; font-size: 14px;
+    }
+    .icon-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+    /* ── SETTINGS DRAWER ── */
+    #settings-drawer {
+      display: none; flex-direction: column; gap: 12px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    #settings-drawer.open { display: flex; }
+    .settings-row { display: flex; align-items: center; gap: 10px; }
+    .settings-label { font-size: 11px; color: var(--text-muted); flex-shrink: 0; min-width: 60px; }
+    .settings-input {
+      flex: 1; padding: 7px 10px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 7px;
+      color: var(--text); font-family: 'DM Mono', monospace; font-size: 10.5px; outline: none;
+    }
+    .settings-input:focus { border-color: var(--accent); }
+    .danger-btn {
+      padding: 6px 12px; background: transparent;
+      border: 1px solid rgba(224,85,85,0.3); border-radius: 7px;
+      color: var(--error); font-size: 11px; cursor: pointer; font-family: 'Geist', sans-serif;
+    }
+    .danger-btn:hover { background: rgba(224,85,85,0.1); }
+
+    /* ── SETUP PANEL ── */
+    #setup-panel {
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      flex: 1; padding: 24px; gap: 16px;
+    }
+    .setup-icon { font-size: 36px; opacity: 0.7; }
+    .setup-title {
+      font-family: 'Instrument Serif', serif; font-size: 20px;
+      color: var(--text); text-align: center; line-height: 1.3;
+    }
+    .setup-desc { font-size: 12px; color: var(--text-muted); text-align: center; line-height: 1.6; max-width: 240px; }
+    .setup-input-wrap { width: 100%; position: relative; }
+    .setup-input {
+      width: 100%; padding: 11px 40px 11px 14px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 10px; color: var(--text);
+      font-family: 'DM Mono', monospace; font-size: 11px; outline: none;
+    }
+    .setup-input:focus { border-color: var(--accent); }
+    .setup-input::placeholder { color: var(--text-dim); }
+    .setup-eye {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;
+    }
+    .primary-btn {
+      width: 100%; padding: 11px; background: var(--accent); color: #1a0e00;
+      border: none; border-radius: 10px; font-family: 'Geist', sans-serif;
+      font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.15s;
+    }
+    .primary-btn:hover { background: var(--accent2); }
+    .setup-link { font-size: 11px; color: var(--text-muted); text-align: center; }
+    .setup-link a { color: var(--accent); text-decoration: none; }
+
+    /* ── MAIN INTERFACE ── */
+    #main-interface {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0; /* critical for nested flex scroll */
+    }
+
+    /* ── DOC STATUS ── */
+    #doc-status {
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .doc-pill {
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      border-radius: 8px; background: var(--surface2); border: 1px solid var(--border);
+      cursor: pointer; transition: all 0.15s; min-height: 36px;
+    }
+    .doc-pill:hover { border-color: var(--border2); }
+    .doc-pill.loaded { border-color: rgba(200,169,126,0.3); background: rgba(200,169,126,0.06); }
+    .doc-pill.error { border-color: rgba(224,85,85,0.3); background: rgba(224,85,85,0.06); }
+    .doc-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text-dim); flex-shrink: 0; transition: background 0.2s;
+    }
+    .doc-pill.loaded .doc-dot { background: var(--accent); }
+    .doc-pill.error .doc-dot { background: var(--error); }
+    .doc-pill.loading .doc-dot { background: var(--accent); animation: pulse 1s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
+    }
+    .doc-text { flex: 1; min-width: 0; }
+    .doc-title {
+      font-size: 11.5px; font-weight: 500; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .doc-meta { font-size: 10px; color: var(--text-muted); font-family: 'DM Mono', monospace; margin-top: 1px; }
+    .refresh-btn { font-size: 12px; color: var(--text-muted); flex-shrink: 0; opacity: 0.7; }
+
+    /* ── CHAT AREA ── */
+    #chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0; /* critical */
+    }
+    #chat-area::-webkit-scrollbar { width: 4px; }
+    #chat-area::-webkit-scrollbar-track { background: transparent; }
+    #chat-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+    /* ── EMPTY STATE ── */
+    #empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; flex: 1; text-align: center;
+      padding: 24px; gap: 12px; color: var(--text-muted);
+    }
+    .empty-icon { font-size: 32px; opacity: 0.5; }
+    .empty-title { font-family: 'Instrument Serif', serif; font-size: 18px; color: var(--text); line-height: 1.3; }
+    .empty-subtitle { font-size: 12px; color: var(--text-muted); max-width: 200px; line-height: 1.5; }
+    .suggested-questions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 8px; }
+    .suggestion {
+      padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text-muted); font-size: 11.5px;
+      cursor: pointer; text-align: left; transition: all 0.15s; font-family: inherit;
+    }
+    .suggestion:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-glow); }
+
+    /* ── MESSAGES ── */
+    .message { display: flex; flex-direction: column; gap: 4px; animation: fadeSlideIn 0.2s ease; }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .message.user { align-items: flex-end; }
+    .message.ai { align-items: flex-start; }
+    .bubble {
+      max-width: 90%; padding: 10px 13px; border-radius: 12px;
+      line-height: 1.55; font-size: 12.5px;
+    }
+    .message.user .bubble {
+      background: var(--user-bubble); border: 1px solid var(--border2);
+      border-bottom-right-radius: 4px; color: var(--text);
+    }
+    .message.ai .bubble {
+      background: var(--ai-bubble); border: 1px solid var(--border);
+      border-bottom-left-radius: 4px; color: var(--text);
+    }
+    .bubble p { margin-bottom: 6px; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble strong { color: var(--accent2); font-weight: 600; }
+    .bubble em { color: var(--text-muted); font-style: italic; }
+    .bubble ul, .bubble ol { padding-left: 16px; margin: 4px 0; }
+    .bubble li { margin: 3px 0; }
+    .bubble code {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      background: var(--surface2); padding: 1px 5px; border-radius: 4px; color: var(--accent);
+    }
+    .bubble pre {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px; overflow-x: auto; margin: 6px 0;
+    }
+    .bubble pre code { background: none; padding: 0; font-size: 11px; }
+    .bubble blockquote { border-left: 2px solid var(--accent); padding-left: 10px; color: var(--text-muted); margin: 6px 0; }
+    .msg-role { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); padding: 0 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .message.ai .msg-role { color: rgba(200,169,126,0.5); }
+
+    /* TYPING */
+    .typing-bubble { display: flex; align-items: center; gap: 4px; padding: 12px 14px; }
+    .typing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: 0.4; }
+    .typing-dot:nth-child(1) { animation: typingBounce 1s 0s infinite; }
+    .typing-dot:nth-child(2) { animation: typingBounce 1s 0.15s infinite; }
+    .typing-dot:nth-child(3) { animation: typingBounce 1s 0.3s infinite; }
+    @keyframes typingBounce {
+      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
+
+    /* ── INPUT AREA ── */
+    #input-area {
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .input-wrap {
+      display: flex; align-items: flex-end; gap: 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 8px 8px 8px 14px; transition: border-color 0.15s;
+    }
+    .input-wrap:focus-within { border-color: var(--accent); }
+    #question-input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--text); font-family: 'Geist', sans-serif;
+      font-size: 12.5px; line-height: 1.5; resize: none;
+      max-height: 100px; min-height: 20px; padding: 2px 0;
+    }
+    #question-input::placeholder { color: var(--text-dim); }
+    #send-btn {
+      width: 32px; height: 32px; border-radius: 8px; background: var(--accent);
+      border: none; color: #1a0e00; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+      transition: all 0.15s; font-size: 14px;
+    }
+    #send-btn:hover { background: var(--accent2); }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .input-hint { font-size: 10px; color: var(--text-dim); text-align: center; margin-top: 7px; font-family: 'DM Mono', monospace; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 80px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface2); border: 1px solid var(--error);
+      color: var(--error); font-size: 11.5px; padding: 8px 14px;
+      border-radius: 8px; opacity: 0; transition: all 0.2s;
+      pointer-events: none; white-space: nowrap; z-index: 100;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div class="logo">
+      <div class="logo-icon">📖</div>
+      <div class="logo-name">Page<span>Mind</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="clear-btn" title="Clear chat">🗑</button>
+      <button class="icon-btn" id="settings-btn" title="Settings">⚙</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS DRAWER -->
+  <div id="settings-drawer">
+    <div class="settings-row">
+      <span class="settings-label">API Key</span>
+      <input type="password" class="settings-input" id="settings-key" placeholder="sk-ant-…" />
+    </div>
+    <div class="settings-row" style="justify-content:flex-end; gap:8px;">
+      <button class="danger-btn" id="logout-btn">Remove Key</button>
+      <button class="primary-btn" id="save-key-btn" style="width:auto; padding:6px 16px; font-size:12px;">Save</button>
+    </div>
+  </div>
+
+  <!-- SETUP PANEL -->
+  <div id="setup-panel">
+    <div class="setup-icon">🔑</div>
+    <div class="setup-title">Connect your<br/>Anthropic key</div>
+    <div class="setup-desc">PageMind uses Claude AI to answer questions about any page. Your key is stored locally and never shared.</div>
+    <div class="setup-input-wrap">
+      <input type="password" class="setup-input" id="api-key-input" placeholder="sk-ant-api03-…" autocomplete="off" />
+      <button class="setup-eye" id="toggle-eye">👁</button>
+    </div>
+    <button class="primary-btn" id="save-api-key">Connect →</button>
+    <div class="setup-link">Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></div>
+  </div>
+
+  <!-- MAIN INTERFACE -->
+  <div id="main-interface">
+
+    <!-- DOC STATUS -->
+    <div id="doc-status">
+      <div class="doc-pill" id="doc-pill">
+        <div class="doc-dot" id="doc-dot"></div>
+        <div class="doc-text">
+          <div class="doc-title" id="doc-title">Click to read page</div>
+          <div class="doc-meta" id="doc-meta">No document loaded</div>
+        </div>
+        <span class="refresh-btn">↻</span>
+      </div>
+    </div>
+
+    <!-- CHAT AREA -->
+    <div id="chat-area">
+      <div id="empty-state">
+        <div class="empty-icon">✦</div>
+        <div class="empty-title">Ask anything about<br/>this page</div>
+        <div class="empty-subtitle">Load the page above, then ask questions below.</div>
+        <div class="suggested-questions">
+          <button class="suggestion">Summarize this page in 3 bullet points</button>
+          <button class="suggestion">What are the key arguments made here?</button>
+          <button class="suggestion">What's the main conclusion or takeaway?</button>
+          <button class="suggestion">List any statistics or numbers mentioned</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- INPUT AREA -->
+    <div id="input-area">
+      <div class="input-wrap">
+        <textarea id="question-input" rows="1" placeholder="Ask a question about this page…"></textarea>
+        <button id="send-btn">➤</button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for newline</div>
+    </div>
+
+  </div><!-- /main-interface -->
+
+</div><!-- /app -->
+
+<div id="toast"></div>
+<script src="sidepanel.js"></script>
+</body>
+</html>
