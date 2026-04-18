@@ -98,9 +98,12 @@ document.addEventListener("DOMContentLoaded", () => {
       pageContent = res.content;
       pill.className = "doc-pill loaded";
       title.textContent = pageContent.title || "Untitled Page";
+      const imgInfo = pageContent.images && pageContent.images.length > 0
+        ? ` · ${pageContent.images.length} image${pageContent.images.length > 1 ? "s" : ""}`
+        : "";
       const typeLabel = pageContent.isPdf
         ? `PDF · ${pageContent.pageCount} pages · ${pageContent.wordCount.toLocaleString()} words · ready`
-        : `${pageContent.wordCount.toLocaleString()} words · ready`;
+        : `${pageContent.wordCount.toLocaleString()} words${imgInfo} · ready`;
       meta.textContent = typeLabel;
     } catch (err) {
       pill.className = "doc-pill error";
@@ -314,6 +317,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
 }); // end DOMContentLoaded
 
+// ── Build user message content (text + images if present) ──
+function buildUserContent(question, images) {
+  if (!images || images.length === 0) return question;
+  return [
+    ...images.map(img => ({
+      type: "image",
+      source: { type: "base64", media_type: img.media_type, data: img.data },
+    })),
+    { type: "text", text: question },
+  ];
+}
+
 // ── Build system prompt ──
 // Note: does NOT vary by question — stable content is required for cache hits.
 function buildSystemPrompt(context) {
@@ -355,7 +370,7 @@ async function askClaudeStream(apiKey, context, question, history, onChunk) {
           cache_control: { type: "ephemeral" },
         },
       ],
-      messages: [...history, { role: "user", content: question }],
+      messages: [...history, { role: "user", content: buildUserContent(question, context.images) }],
     }),
   });
 

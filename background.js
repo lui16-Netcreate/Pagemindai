@@ -32,14 +32,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       chrome.scripting.executeScript(
         { target: { tabId: tab.id }, func: extractPageContent },
-        (results) => {
+        async (results) => {
           if (chrome.runtime.lastError) {
             sendResponse({ error: chrome.runtime.lastError.message });
-          } else if (!results || !results[0]) {
-            sendResponse({ error: "Could not read page content." });
-          } else {
-            sendResponse({ content: results[0].result });
+            return;
           }
+          if (!results || !results[0]) {
+            sendResponse({ error: "Could not read page content." });
+            return;
+          }
+          const content = results[0].result;
+          content.images = await fetchImagesAsBase64(content.imageUrls || []);
+          delete content.imageUrls;
+          sendResponse({ content });
         }
       );
     });
@@ -130,7 +135,33 @@ async function extractPdfFromUrl(url, title) {
     wordCount: cleaned.split(/\s+/).filter(w => w.length > 0).length,
     pageCount: totalPages,
     isPdf: true,
+    images: [],
   };
+}
+
+// ── Fetch images and convert to base64 ──
+async function fetchImagesAsBase64(urls) {
+  const results = [];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) continue;
+      const arrayBuffer = await res.arrayBuffer();
+      // Skip images over 4MB to stay within API limits
+      if (arrayBuffer.byteLength > 4 * 1024 * 1024) continue;
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      const mediaType = (res.headers.get("content-type") || "image/jpeg").split(";")[0];
+      results.push({ media_type: mediaType, data: btoa(binary) });
+    } catch {
+      // Skip images that fail (CORS, network, etc.)
+    }
+  }
+  return results;
 }
 
 // ── Webpage extractor (injected into page) ──
@@ -163,12 +194,19 @@ function extractPageContent() {
   const rawText = getTextFromNode(main);
   const cleaned = rawText.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
 
+  const imageUrls = Array.from(document.querySelectorAll("img"))
+    .filter(img => img.naturalWidth >= 100 && img.naturalHeight >= 100)
+    .map(img => img.currentSrc || img.src)
+    .filter(src => src && src.startsWith("http"))
+    .slice(0, 5);
+
   return {
     title: document.title,
     url: window.location.href,
     text: cleaned.slice(0, 80000),
     wordCount: cleaned.split(/\s+/).filter(w => w.length > 0).length,
     isPdf: false,
+    imageUrls,
   };
 }
 
