@@ -4,6 +4,7 @@ let apiKey = null;
 let pageContent = null;
 let chatHistory = [];
 let isLoading = false;
+let currentUtterance = null;
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -196,11 +197,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // CLEAR CHAT
   document.getElementById("clear-btn").addEventListener("click", () => {
+    if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+    currentUtterance = null;
     const area = document.getElementById("chat-area");
     area.querySelectorAll(".message").forEach(el => el.remove());
     document.getElementById("empty-state").style.display = "";
     chatHistory = [];
   });
+
+  // TEXT-TO-SPEECH
+  function speak(text, btn) {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      // if the same button triggered it, treat as stop
+      if (currentUtterance && currentUtterance._btn === btn) {
+        currentUtterance = null;
+        btn.textContent = "🔊 speak";
+        btn.classList.remove("speaking");
+        return;
+      }
+    }
+
+    // reset previous button if any
+    if (currentUtterance && currentUtterance._btn) {
+      currentUtterance._btn.textContent = "🔊 speak";
+      currentUtterance._btn.classList.remove("speaking");
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance._btn = btn;
+    currentUtterance = utterance;
+    btn.textContent = "⏹ stop";
+    btn.classList.add("speaking");
+
+    utterance.onend = () => {
+      btn.textContent = "🔊 speak";
+      btn.classList.remove("speaking");
+      currentUtterance = null;
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function addSpeakButton(wrapper, text) {
+    const btn = document.createElement("button");
+    btn.className = "speak-btn";
+    btn.textContent = "🔊 speak";
+    btn.addEventListener("click", () => speak(text, btn));
+    wrapper.appendChild(btn);
+  }
 
   // STREAMING BUBBLE HELPERS
   function appendStreamingBubble() {
@@ -236,6 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const bubble = wrapper.querySelector(".bubble");
     bubble.classList.remove("streaming");
     bubble.innerHTML = renderMarkdown(text);
+    addSpeakButton(wrapper, text);
     const area = document.getElementById("chat-area");
     area.scrollTop = area.scrollHeight;
   }
@@ -256,6 +302,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     wrapper.appendChild(label);
     wrapper.appendChild(bubble);
+    if (role === "ai") addSpeakButton(wrapper, text);
     area.appendChild(wrapper);
     area.scrollTop = area.scrollHeight;
     return wrapper;
