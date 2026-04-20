@@ -5,6 +5,10 @@ let pageContent = null;
 let chatHistory = [];
 let isLoading = false;
 let currentUtterance = null;
+let cachedVoice = null;
+
+// Preload voices — Chrome populates them async
+window.speechSynthesis.onvoiceschanged = () => { cachedVoice = null; };
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -206,6 +210,19 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // TEXT-TO-SPEECH
+  function getBestVoice() {
+    if (cachedVoice) return cachedVoice;
+    const voices = window.speechSynthesis.getVoices();
+    cachedVoice =
+      voices.find(v => v.name.startsWith("Google") && v.lang === "en-US") ||
+      voices.find(v => v.name.startsWith("Google") && v.lang.startsWith("en")) ||
+      voices.find(v => v.lang === "en-US" && v.localService === false) ||
+      voices.find(v => v.lang === "en-US") ||
+      voices.find(v => v.lang.startsWith("en")) ||
+      null;
+    return cachedVoice;
+  }
+
   function speak(text, btn) {
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
@@ -225,6 +242,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
+    const voice = getBestVoice();
+    if (voice) utterance.voice = voice;
     utterance._btn = btn;
     currentUtterance = utterance;
     btn.textContent = "⏹ stop";
