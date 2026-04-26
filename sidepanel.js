@@ -4,6 +4,7 @@ let apiKey = null;
 let pageContent = null;
 let chatHistory = [];
 let isLoading = false;
+let sessionLanguage = null;
 
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -141,6 +142,23 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!pageContent) { showToast("Load a page first!"); return; }
     if (!apiKey) { showToast("No API key set"); return; }
 
+    // check for language commands before sending to Claude
+    const langCmd = detectLanguageCommand(question);
+    if (langCmd) {
+      input.value = "";
+      input.style.height = "auto";
+      document.getElementById("empty-state").style.display = "none";
+      appendMessage("user", question);
+      if (langCmd.type === "stop") {
+        setSessionLanguage(null);
+        appendMessage("ai", "Translation disabled. Responses will be in English.");
+      } else {
+        setSessionLanguage(langCmd.language);
+        appendMessage("ai", `All responses will now be translated to **${langCmd.language}**. Type "stop translating" to disable.`);
+      }
+      return;
+    }
+
     input.value = "";
     input.style.height = "auto";
     document.getElementById("empty-state").style.display = "none";
@@ -154,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const finalText = await askClaudeStream(
-        apiKey, pageContent, question, chatHistory.slice(-10),
+        apiKey, pageContent, question, chatHistory.slice(-10), sessionLanguage,
         (partialText) => {
           if (!streamEl) {
             typingEl.remove();
@@ -200,7 +218,29 @@ document.addEventListener("DOMContentLoaded", () => {
     area.querySelectorAll(".message").forEach(el => el.remove());
     document.getElementById("empty-state").style.display = "";
     chatHistory = [];
+    setSessionLanguage(null);
   });
+
+  // LANGUAGE HELPERS
+  function setSessionLanguage(lang) {
+    sessionLanguage = lang;
+    const badge = document.getElementById("lang-badge");
+    if (lang) {
+      badge.textContent = lang;
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+  }
+
+  function detectLanguageCommand(text) {
+    const t = text.toLowerCase().trim();
+    if (/^(stop translating|back to english|reset language|disable translation|no translation)/.test(t))
+      return { type: "stop" };
+    const m = t.match(/^(?:translate all(?:\s+responses?)?\s+to|always\s+(?:respond|answer|reply)\s+in|respond\s+in|answer\s+in|reply\s+in|set\s+language\s+to)\s+([a-z]+)/);
+    if (m) return { type: "set", language: m[1].charAt(0).toUpperCase() + m[1].slice(1) };
+    return null;
+  }
 
   // STREAMING BUBBLE HELPERS
   function appendStreamingBubble() {
@@ -330,9 +370,11 @@ function buildUserContent(question, images) {
 }
 
 // ── Build system prompt ──
-// Note: does NOT vary by question — stable content is required for cache hits.
-function buildSystemPrompt(context) {
+function buildSystemPrompt(context, language = null) {
   const docType = context.isPdf ? `PDF DOCUMENT (${context.pageCount} pages)` : "WEBPAGE";
+  const langInstruction = language
+    ? `\nIMPORTANT: Always respond in ${language}, regardless of the language used by the user.`
+    : "";
 
   return `You are PageMind, an intelligent reading assistant. The user is viewing a ${docType}.
 
@@ -345,11 +387,11 @@ CONTENT:
 ${context.text}
 ---
 
-Answer questions based on this content. Be concise but thorough. If the answer isn't in the content, say so clearly. Use markdown formatting when helpful.`;
+Answer questions based on this content. Be concise but thorough. If the answer isn't in the content, say so clearly. Use markdown formatting when helpful.${langInstruction}`;
 }
 
 // ── Claude streaming API ──
-async function askClaudeStream(apiKey, context, question, history, onChunk) {
+async function askClaudeStream(apiKey, context, question, history, language, onChunk) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -366,7 +408,7 @@ async function askClaudeStream(apiKey, context, question, history, onChunk) {
       system: [
         {
           type: "text",
-          text: buildSystemPrompt(context),
+          text: buildSystemPrompt(context, language),
           cache_control: { type: "ephemeral" },
         },
       ],
