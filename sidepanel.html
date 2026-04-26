@@ -253,6 +253,17 @@
     .msg-role { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-dim); padding: 0 4px; letter-spacing: 0.05em; text-transform: uppercase; }
     .message.ai .msg-role { color: rgba(200,169,126,0.5); }
 
+    /* ── COPY BUTTON ── */
+    .copy-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-dim); font-size: 10.5px; padding: 2px 7px;
+      border-radius: 5px; transition: all 0.15s;
+      font-family: 'DM Mono', monospace; align-self: flex-start;
+      margin-top: -2px;
+    }
+    .copy-btn:hover { color: var(--text-muted); background: var(--surface2); }
+    .copy-btn.copied { color: var(--success); }
+
     /* ── LANGUAGE BADGE ── */
     #lang-badge {
       font-size: 10px; font-family: 'DM Mono', monospace;

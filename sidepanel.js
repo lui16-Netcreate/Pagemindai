@@ -276,6 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const bubble = wrapper.querySelector(".bubble");
     bubble.classList.remove("streaming");
     bubble.innerHTML = renderMarkdown(text);
+    addCopyButton(wrapper, text);
     const area = document.getElementById("chat-area");
     area.scrollTop = area.scrollHeight;
   }
@@ -296,9 +297,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     wrapper.appendChild(label);
     wrapper.appendChild(bubble);
+    if (role === "ai") addCopyButton(wrapper, text);
     area.appendChild(wrapper);
     area.scrollTop = area.scrollHeight;
     return wrapper;
+  }
+
+  function addCopyButton(wrapper, text) {
+    const btn = document.createElement("button");
+    btn.className = "copy-btn";
+    btn.textContent = "copy";
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = "✓ copied";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.textContent = "copy";
+          btn.classList.remove("copied");
+        }, 2000);
+      });
+    });
+    wrapper.appendChild(btn);
   }
 
   function appendTyping() {
